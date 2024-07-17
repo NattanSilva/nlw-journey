@@ -1,13 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { env } from '../env';
-import { ClientError } from '../errors/client-error';
 import { prisma } from '../lib/prisma';
+import { ClientError } from '../errors/client-error';
 
-export async function confirmParticipant(app: FastifyInstance) {
+export async function getParticipant(app: FastifyInstance) {
   app.withTypeProvider<ZodTypeProvider>().get(
-    '/participants/:participantId/confirm',
+    '/participants/:participantId',
     {
       schema: {
         params: z.object({
@@ -15,10 +14,16 @@ export async function confirmParticipant(app: FastifyInstance) {
         }),
       },
     },
-    async (request, reply) => {
+    async (request) => {
       const { participantId } = request.params;
 
       const participant = await prisma.participant.findUnique({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          is_confirmed: true,
+        },
         where: { id: participantId },
       });
 
@@ -26,18 +31,7 @@ export async function confirmParticipant(app: FastifyInstance) {
         throw new ClientError('Participant not found.');
       }
 
-      if (participant.is_confirmed) {
-        return reply.redirect(
-          `${env.WEB_BASE_URL}/trips/${participant.trip_id}`
-        );
-      }
-
-      await prisma.participant.update({
-        where: { id: participantId },
-        data: { is_confirmed: true },
-      });
-
-      return reply.redirect(`${env.WEB_BASE_URL}/trips/${participant.trip_id}`);
+      return { participant };
     }
   );
 }
